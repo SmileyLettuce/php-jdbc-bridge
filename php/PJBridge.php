@@ -1,6 +1,6 @@
 <?php
 
-namespace SmileleyLettuce\JDBCBridge;
+namespace SmileyLettuce\JDBCBridge;
 
 /*
  * Copyright (C) 2007 lenny@mondogrigio.cjb.net
