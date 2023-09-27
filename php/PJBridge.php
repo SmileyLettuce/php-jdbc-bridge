@@ -2,6 +2,10 @@
 
 namespace SmileyLettuce\JDBCBridge;
 
+use Exception;
+use Throwable;
+use JsonException;
+
 /*
  * Copyright (C) 2007 lenny@mondogrigio.cjb.net
  *
@@ -22,123 +26,168 @@ namespace SmileyLettuce\JDBCBridge;
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-class PJBridge {
+class PJBridge
+{
+    private $sock;
 
-	private $sock;
-        private $jdbc_enc;
-        private $app_enc;
+    /**
+     * @param string $host
+     * @param int $port
+     * @throws Exception
+     */
+    public function __construct(string $host="localhost", int $port=4444)
+    {
 
-        public $last_search_length = 0;
+        $this->sock  = fsockopen($host, $port, $error_code, $error_message);
 
-	function __construct($host="localhost", $port="4444", $jdbc_enc="ascii", $app_enc="ascii") {
+        if (!$this->sock) {
+            throw new Exception($error_code . ": " . $error_message);
+        }
+    }
 
-		$this->sock = fsockopen($host, $port);
-                $this->jdbc_enc = $jdbc_enc;
-                $this->app_enc = $app_enc;
- 	}
+    /**
+     *
+     */
+    public function __destruct()
+    {
+        fclose($this->sock);
+    }
 
-	function __destruct() {
-	
-		fclose($this->sock);
-	}
 
-	private function parse_reply() {
+    /**
+     * @return array<mixed>
+     * @throws Exception
+     */
+    private function parse_reply(): array
+    {
 
-		$il = explode(' ', fgets($this->sock));
-		$ol = array();
+        $returnArr = [];
+        $ret = [];
 
-		foreach ($il as $value)
-			$ol[] = iconv($this->jdbc_enc, $this->app_enc, base64_decode($value));
+        $returnString = fgets($this->sock);
 
-		return $ol;
-	}
+        if($returnString === false) {
+            throw new Exception('Unable to get ouput from socket');
+        }
 
-	private function exchange($cmd_a) {
+        try {
+            $returnArr = json_decode($returnString, true, flags: JSON_BIGINT_AS_STRING | JSON_OBJECT_AS_ARRAY | JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new Exception('Unable to decode contents');
+        }
 
-		$cmd_s = '';
+        if(is_array($returnArr) === false) {
+            throw new Exception('Returned message not an array');
+        }
 
-		foreach ($cmd_a as $tok)
-			$cmd_s .= base64_encode(iconv($this->app_enc, $this->jdbc_enc, $tok)).' ';
-		
-		$cmd_s = substr($cmd_s, 0, -1)."\n";
+        if(!isset($returnArr['status'])) {
+            throw new Exception('Unable to get status');
+        } else {
+            $ret['status'] = $returnArr['status'];
+        }
 
-		fwrite($this->sock, $cmd_s);
-		
-		return $this->parse_reply();
-	}
+        if(array_key_exists('status', $returnArr) && $returnArr['status'] === "error") {
+            throw new Exception($returnArr['message']);
+        }
 
-	public function connect($url, $user, $pass) {
+        if(array_key_exists('message', $returnArr)) {
+            $ret['message'] = $returnArr['message'];
+        }
 
-		$reply = $this->exchange(array('connect', $url, $user, $pass));
+        if(array_key_exists('data', $returnArr)) {
+            $ret['data'] = $returnArr['data'];
+        }
 
-		switch ($reply[0]) {
+        return $ret;
+    }
 
-		case 'ok':
-			return true;
 
-		default:
-			return false;
-		}
-	}
+    /**
+     * @param string $dsn
+     * @param string $user
+     * @param string $pass
+     */
+    public function connect($dsn, $user, $pass): void
+    {
 
-	public function exec($query) {
+        $connArr['action'] = 'connect';
+        $connArr['data'] = [
+            'user' => $user,
+            'pass' => $pass,
+            'dsn' => $dsn
+        ];
+        fwrite($this->sock, json_encode($connArr)."\n");
+        $this->parse_reply();
+    }
 
-		$cmd_a = array('exec', $query);
 
-		if (func_num_args() > 1) {
-		
-			$args = func_get_args();
+    /**
+     * @param string $query
+     * @param array<string,string> $params
+     * @return mixed
+     * @throws Exception
+     */
+    public function exec(string $query, array $params = []): mixed
+    {
 
-			for ($i = 1; $i < func_num_args(); $i ++)
-				$cmd_a[] = $args[$i];
-		}
+        $sendArr['action'] = 'execute';
+        $sendArr['data']['query'] = $query;
 
-		$reply = $this->exchange($cmd_a);
+        if(!empty($params)) {
 
-		switch ($reply[0]) {
+            foreach($params as $i=>$p) {
+                $sendArr['data']['params'][$i] = $p;
+            }
+        }
 
-		case 'ok':
-			return $reply[1];
+        fwrite($this->sock, json_encode($sendArr)."\n");
 
-		default:
-			return false;
-		}
-	}
+        $return = $this->parse_reply();
 
-	public function fetch_array($res) {
+        if(empty($return['message'])) {
+            throw new Exception('ResultId is empty');
+        }
 
-		$reply = $this->exchange(array('fetch_array', $res));
+        //this will return the result_id
+        return $return['message'];
+    }
 
-		switch ($reply[0]) {
 
-		case 'ok':
-			$row = array();
+    /**
+     * @param string $resultId
+     * @return mixed
+     * @throws Exception
+     */
+    public function fetch_array(string $resultId): mixed
+    {
 
-			for ($i = 0; $i < $reply[1]; $i ++) {
+        $sendArr['action'] = 'fetch_array';
+        $sendArr['data']['result_id'] = $resultId;
 
-				$col = $this->parse_reply($this->sock);
-				$row[$col[0]] = $col[1];
-			}
+        fwrite($this->sock, json_encode($sendArr)."\n");
 
-			return $row;
+        $return = $this->parse_reply();
 
-		default:
-			return false;
-		}
-	}
+        if(!array_key_exists('data', $return)) {
+            throw new Exception('data is empty');
+        }
 
-	public function free_result($res) {
+        //this will return the result set
+        return $return['data'];
+    }
 
-		$reply = $this->exchange(array('free_result', $res));
+    /**
+     * @param string $resultId
+     * @return mixed
+     * @throws Exception
+     */
+    public function free_result(string $resultId): mixed
+    {
 
-		switch ($reply[0]) {
+        $sendArr['action'] = 'free_result';
+        $sendArr['data']['result_id'] = $resultId;
 
-		case 'ok':
-			return true;
-		default:
-			return false;
-		}
-	}
+        fwrite($this->sock, json_encode($sendArr)."\n");
+        return $this->parse_reply();
+    }
 }
-
-?>
