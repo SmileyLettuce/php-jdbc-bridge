@@ -18,196 +18,211 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.util.Hashtable;
-
-/**
- * This class is instatiated by the ServerThread class.
- * Contains the commands implementations.
- * @author lenny
- */
-public class ServerCommands {
-    
-    private ServerThread serverThread;
-    private Connection conn = null;
-    private Hashtable results = new Hashtable();
-    
-    /** Creates a new instance of ServerCommands */
-    public ServerCommands(ServerThread serverThread) {
-        
-        this.serverThread = serverThread;
-    }
-    
-    /**
-     * Connect to a JDBC data source.
-     * @param cmd 
-     */
-    public void connect(String[] cmd) {
-        
-        if (conn == null && cmd.length == 4) {
-            
-            try {
-                
-                conn = DriverManager.getConnection(cmd[1], cmd[2], cmd[3]);
-                serverThread.write("ok");
-                
-            } catch (SQLException ex) {
-               
-                Utils.log("error", "SQL exception encountered: " + ex.getMessage());           
-                serverThread.write("ex");
-            }
-            
-        } else {
-            Utils.log("error", "Unexpected error encountered"); 
-            serverThread.write("err");
-        }
-    }
-    
-    /**
-     * Execute an SQL query.
-     * @param cmd 
-     */
-    public void exec(String[] cmd) {
-        
-        if (conn != null && cmd.length >= 2) {
-            
-            try {
-                
-                PreparedStatement st = conn.prepareStatement(cmd[1]);
-                st.setFetchSize(1);
-                
-                for (int i = 2; i < cmd.length; i ++) {
-                    
-                    try {
-                        
-                        st.setDouble(i - 1, Double.parseDouble(cmd[i]));
-                        
-                    } catch (NumberFormatException e) {
-                        
-                        st.setString(i - 1, cmd[i]);
-                    }
-                }
-                
-                if (st.execute()) {
-                    
-                    String id = Utils.makeUID();
-                    results.put(id, st.getResultSet());
-                    serverThread.write("ok", id);
-                    
-                } else {
-                    
-                    serverThread.write("ok", st.getUpdateCount());
-                }
-                
-            } catch (SQLException ex) {
-     
-                Utils.log("error", "SQL exception encountered: " + ex.getMessage());
-                serverThread.write("ex");
-            }
-            
-        } else {
-           
-            Utils.log("error", "Unexpected error encountered");
-            serverThread.write("err");
-        }
-    }
-    
-    /**
-     * Fetch a row from a ResultSet.
-     * @param cmd 
-     */
-    public void fetch_array(String[] cmd) {
-        
-        if (conn != null && cmd.length == 2) {
-            
-            ResultSet rs = (ResultSet)results.get(cmd[1]);
-            
-            if (rs != null) {
-                
-                try {
-                    
-                    if (rs.next()) {
-                        
-                        ResultSetMetaData rsmd = rs.getMetaData();
-                        int cn = rsmd.getColumnCount();
-                        
-                        serverThread.write("ok", cn);
-                        
-                        for (int i = 1; i <= cn; i ++)
-                            serverThread.write(rsmd.getColumnName(i), rs.getString(i));
-                        
-                    } else {
-                        
-                        serverThread.write("end");
-                    }
-                    
-                } catch (SQLException ex) {
-                   
-                    Utils.log("error", "SQL exception encountered: " + ex.getMessage());
-                    serverThread.write("ex");
-                }
-                
-            } else {
-               
-                Utils.log("error", "Unexpected error encountered");
-                serverThread.write("err");
-            }
-            
-        } else {
-           
-            Utils.log("error", "Unexpected error encountered");
-            serverThread.write("err");
-        }
-    }
-    
-    /**
-     * Release a ResultSet.
-     * @param cmd 
-     */
-    public void free_result(String[] cmd) {
-        
-        if (conn != null && cmd.length == 2) {
-            
-            ResultSet rs = (ResultSet)results.get(cmd[1]);
-            
-            if (rs != null) {
-                
-                results.remove(cmd[1]);
-                serverThread.write("ok");
-                
-            } else {
-               
-                Utils.log("error", "Unexpected error encountered");
-                serverThread.write("err");
-            }
-            
-        } else {
-           
-            Utils.log("error", "Unexpected error encountered");
-            serverThread.write("err");
-        }
-    }
-    
-    /**
-     * Release the JDBC connection.
-     */
-    public void close() {
-        
-        if (conn != null) {
-            
-            try {
-                
-                conn.close();
-                
-            } catch (SQLException ex) {
-                
-                Utils.log("error", "could not close JDBC connection");
-            }
-        }
-    }
-}
+ import java.sql.Connection;
+ import java.sql.DriverManager;
+ import java.sql.PreparedStatement;
+ import java.sql.ResultSet;
+ import java.sql.ResultSetMetaData;
+ import java.sql.SQLException;
+ import java.util.Hashtable;
+ 
+ import org.json.JSONArray;
+ import org.json.JSONObject;
+ 
+ /**
+  * This class is instantiated by the ServerThread class.
+  * Contains the commands implementations.
+  * @author lenny
+  */
+ public class ServerCommands {
+ 
+     private final ServerThread serverThread;
+     private Connection conn = null;
+ //    private Hashtable results = new Hashtable();
+     Hashtable<String, ResultSet> results = new Hashtable<String, ResultSet>();
+ 
+     /** Creates a new instance of ServerCommands */
+     public ServerCommands(ServerThread serverThread) {
+ 
+         this.serverThread = serverThread;
+     }
+ 
+     /**
+      * Connect to a JDBC data source.
+      * @param dataObj JSONObject[]
+      */
+     public void connect(JSONObject dataObj) {
+ 
+         String dsn = dataObj.getString("dsn");
+         String user = dataObj.getString("user");
+         String pass = dataObj.getString("pass");
+ 
+         try {
+             conn = DriverManager.getConnection(dsn, user, pass);
+             Message msg = new Message("success", "connected to server");
+             serverThread.write(msg.createJson().toString());
+ 
+         } catch (SQLException e) {
+ 
+             Message msg = new Message("error", Utils.formatSQLErrorMessage(e));
+             serverThread.write(msg.createJson().toString());
+         }
+     }
+ 
+ 
+     /**
+      * Execute an SQL query.
+      * @param dataObj JSONObject
+      */
+     public void execute(JSONObject dataObj) {
+ 
+         if (conn == null){
+             Message msg = new Message("error", "connection string is null");
+             serverThread.write(msg.createJson().toString());
+         }
+ 
+         try {
+ 
+             String query = dataObj.getString("query");
+ 
+             PreparedStatement st = conn.prepareStatement(query);
+             st.setFetchSize(1);
+ 
+             if(dataObj.has("params")){
+ 
+                 JSONArray paramsArr = dataObj.getJSONArray("params");
+                 if(!paramsArr.isEmpty()) {
+                     for (int i = 0; i < paramsArr.length(); i++) {
+                         String paramVal = paramsArr.getString(i);
+                         st.setString(i+1, paramVal);
+                     }
+                 }
+             }
+ 
+             if (st.execute()) {
+                 String resultId = Utils.makeUID();
+                 results.put(resultId, st.getResultSet());
+ 
+                 Message msg = new Message("success",resultId);
+                 serverThread.write(msg.createJson().toString());
+ 
+             } else {
+                 Message msg = new Message("success", st.getUpdateCount() + " rows updated");
+                 serverThread.write(msg.createJson().toString());
+             }
+ 
+         } catch (SQLException e) {
+ 
+             Message msg = new Message("error", Utils.formatSQLErrorMessage(e));
+             serverThread.write(msg.createJson().toString());
+         }
+     }
+ 
+ 
+     /**
+      * Fetch results from a result_id ResultSet.
+      * @param dataObj JSONObject
+      */
+     public void fetch_array(JSONObject dataObj) {
+ 
+         if (conn == null){
+             Message msg = new Message("error", "connection string is null");
+             serverThread.write(msg.createJson().toString());
+         }
+ 
+         try {
+ 
+             String resultId = dataObj.getString("result_id");
+ 
+             if (resultId == null) {
+                 Message msg = new Message("error", "result_id not found");
+                 serverThread.write(msg.createJson().toString());
+             }
+ 
+             ResultSet rs = results.get(resultId);
+ 
+             if (rs != null) {
+ 
+                 JSONArray dataArr = new JSONArray();
+ 
+                 while (rs.next()) {
+ 
+                     ResultSetMetaData rsmd = rs.getMetaData();
+                     JSONObject lineObj = new JSONObject();
+ 
+                     for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+ 
+                         String colVal = rs.getString(i);
+                         lineObj.put(rsmd.getColumnName(i), colVal == null ? JSONObject.NULL : colVal);
+                     }
+ 
+                     dataArr.put(lineObj);
+                 }
+ 
+                 Message msg = new Message("success","array fetched successfully");
+                 msg.addData(dataArr);
+                 serverThread.write(msg.createJson().toString());
+ 
+             }else{
+ 
+                 Message msg = new Message("error", "result set is null");
+                 serverThread.write(msg.createJson().toString());
+             }
+ 
+         }catch (SQLException e){
+             Message msg = new Message("error", Utils.formatSQLErrorMessage(e));
+             serverThread.write(msg.createJson().toString());
+         }
+ 
+     }
+ 
+ 
+     /**
+      * Free results from a result_id ResultSet.
+      * @param dataObj JSONObject
+      */
+     public void free_result(JSONObject dataObj) {
+ 
+         if (conn == null) {
+             Message msg = new Message("error", "connection string is null");
+             serverThread.write(msg.createJson().toString());
+         }
+ 
+         String resultId = dataObj.getString("result_id");
+         if (resultId == null) {
+             Message msg = new Message("error", "result_id not found");
+             serverThread.write(msg.createJson().toString());
+         }
+ 
+         try {
+             results.remove(resultId);
+             Message msg = new Message("success",resultId + ": results were removed");
+             serverThread.write(msg.createJson().toString());
+         }
+         catch (NullPointerException e){
+             Message msg = new Message("error", e.getMessage());
+             serverThread.write(msg.createJson().toString());
+         }
+ 
+     }
+ 
+ 
+     /**
+      * Release the JDBC connection.
+      */
+     public void close() {
+ 
+         if (conn != null) {
+ 
+             try {
+                 conn.close();
+ 
+             } catch (SQLException e) {
+                 Message msg = new Message("error", Utils.formatSQLErrorMessage(e));
+                 serverThread.write(msg.createJson().toString());
+             }
+         }
+     }
+ 
+ }
+ 
