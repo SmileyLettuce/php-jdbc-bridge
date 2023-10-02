@@ -36,6 +36,14 @@ public class Server extends Thread {
     /**
      * Creates a new instance of Server
      */
+    public Server(String driver, int port) {
+
+        this.driver = driver;
+	    this.port = port;
+
+        init();
+    }
+
     public Server(String driver, String port) {
 
         this.driver = driver;
