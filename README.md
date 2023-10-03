@@ -10,8 +10,8 @@ and the JDBC database.
 
 ## Requirements
 
-* Java 1.6+
-* PHP 5.3+
+* Java 15.0+
+* PHP 8.0+
 * A JDBC driver
 
 ## Build (Java Service)
@@ -60,11 +60,11 @@ require "PJBridge.php";
 
 $dbHost = "server";
 $dbName = "";
-$dbPort = "1990";
+$dbPort = 4444;
 $dbUser = "dharma";
 $dbPass = "";
 
-$connStr = "jdbc:dharma:T:${dbHost}:${dbName}:${dbPort}";
+$connStr = "jdbc:snowflake://${dbHost}:${dbName}:${dbPort}";
 
 $db = new PJBridge();
 $result = $db->connect($connStr, $dbUser, $dbPass);
