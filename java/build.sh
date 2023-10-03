@@ -16,6 +16,6 @@ tar -C lib/ \
 wget \
   -O lib/${ORG_JSON_VER}.jar \
   "https://repo1.maven.org/maven2/org/json/json/20230618/${ORG_JSON_VER}.jar"
-
-javac -cp lib/${COMMONS_DAEMON_VER}.jar -d class/ src/*
+  
+javac -cp lib/${COMMONS_DAEMON_VER}.jar:lib/${ORG_JSON_VER}.jar -d class/ src/*
 jar cfe lib/pjbridge.jar Server -C class .
