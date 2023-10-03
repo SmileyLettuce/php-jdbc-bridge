@@ -38,14 +38,14 @@ cd java
 To run the service:
 
 ```sh 
-java -cp 'lib/pjbridge.jar:lib/commons-daemon-1.0.15.jar:lib/<JDBC driver>.jar Server <JDBC driver entry point> <port>
+java -cp 'lib/pjbridge.jar:lib/commons-daemon-1.0.15.jar:lib/<JDBC driver>.jar:lib/<Org-Json>.jar Server <JDBC driver entry point> <port>
 ```
 
 Example:
 
 ```sh
 cd java
-java -cp 'lib/pjbridge.jar:lib/commons-daemon-1.0.15.jar:lib/dharma.jar' Server dharma.jdbc.DharmaDriver 4444
+java -cp 'lib/pjbridge.jar:lib/commons-daemon-1.2.2.jar:lib/snowflake-jdbc-3.13.1.jar:lib/json-20230618.jar' Server net.snowflake.client.jdbc.SnowflakeDriver 4444
 ```
 
 where the lib directory contains the php-jdbc jar, the commons-daemon jar and your JDBC driver jar.
