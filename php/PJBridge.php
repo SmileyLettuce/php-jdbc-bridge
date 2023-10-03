@@ -28,6 +28,7 @@ use JsonException;
 
 class PJBridge
 {
+    /** @var resource $sock */
     private $sock;
 
     /**
@@ -38,12 +39,15 @@ class PJBridge
     public function __construct(string $host="localhost", int $port=4444)
     {
 
-        $this->sock  = fsockopen($host, $port, $error_code, $error_message);
+        $sock = fsockopen($host, $port, $error_code, $error_message);
 
-        if (!$this->sock) {
+        if (!$sock) {
             throw new Exception($error_code . ": " . $error_message);
         }
+
+        $this->sock = $sock;
     }
+
 
     /**
      *
@@ -55,13 +59,13 @@ class PJBridge
 
 
     /**
-     * @return array<mixed>
+     * @return array{'status': string, 'message': string ,"data"?: array<int, string>}
      * @throws Exception
      */
     private function parse_reply(): array
     {
 
-        $returnArr = [];
+        /** @var array{'status': string, 'message': string ,"data"?: array<int, string>} $ret */
         $ret = [];
 
         $returnString = fgets($this->sock);
@@ -106,6 +110,7 @@ class PJBridge
      * @param string $dsn
      * @param string $user
      * @param string $pass
+     * @throws Exception
      */
     public function connect($dsn, $user, $pass): void
     {
@@ -124,14 +129,18 @@ class PJBridge
     /**
      * @param string $query
      * @param array<string,string> $params
-     * @return mixed
+     * @return string
      * @throws Exception
      */
-    public function exec(string $query, array $params = []): mixed
+    public function exec(string $query, array $params = []): string
     {
 
-        $sendArr['action'] = 'execute';
-        $sendArr['data']['query'] = $query;
+        $sendArr = [
+            'action' => 'execute',
+            'data'  => [
+                'query' => $query
+            ]
+        ];
 
         if(!empty($params)) {
 
@@ -142,6 +151,9 @@ class PJBridge
 
         fwrite($this->sock, json_encode($sendArr)."\n");
 
+        /**
+         * @var array{status: string, message:string} $return
+         */
         $return = $this->parse_reply();
 
         if(empty($return['message'])) {
@@ -155,17 +167,22 @@ class PJBridge
 
     /**
      * @param string $resultId
-     * @return mixed
+     * @return array<int, string>
      * @throws Exception
      */
-    public function fetch_array(string $resultId): mixed
+    public function fetch(string $resultId): array
     {
 
-        $sendArr['action'] = 'fetch_array';
-        $sendArr['data']['result_id'] = $resultId;
+        $sendArr = [
+            'action' => 'fetch',
+            'data'  => [
+                'result_id' => $resultId
+            ]
+        ];
 
         fwrite($this->sock, json_encode($sendArr)."\n");
 
+        /** @var array{'status': string, 'message': string ,'data': array<int, string>} $return */
         $return = $this->parse_reply();
 
         if(!array_key_exists('data', $return)) {
@@ -176,18 +193,63 @@ class PJBridge
         return $return['data'];
     }
 
+
     /**
      * @param string $resultId
-     * @return mixed
+     * @return array<int, string>
      * @throws Exception
      */
-    public function free_result(string $resultId): mixed
+    public function fetch_array(string $resultId): array
     {
 
-        $sendArr['action'] = 'free_result';
-        $sendArr['data']['result_id'] = $resultId;
+        $sendArr = [
+            'action' => 'fetch_array',
+            'data'  => [
+                'result_id' => $resultId
+            ]
+        ];
 
         fwrite($this->sock, json_encode($sendArr)."\n");
-        return $this->parse_reply();
+
+        /** @var array{'status': string, 'message': string ,'data': array<int, string>} $return */
+        $return = $this->parse_reply();
+
+        if(!array_key_exists('data', $return)) {
+            throw new Exception('data is empty');
+        }
+
+        //this will return the result set
+        return $return['data'];
+    }
+
+
+    /**
+     * @param string $resultId
+     * @return string
+     * @throws Exception
+     */
+    public function free_result(string $resultId): string
+    {
+
+        $sendArr = [
+            'action' => 'free_result',
+            'data'  => [
+                'result_id' => $resultId
+            ]
+        ];
+
+        fwrite($this->sock, json_encode($sendArr)."\n");
+
+        /**
+         * @var array{status: string, message:string} $return
+         */
+        $return = $this->parse_reply();
+
+        if(empty($return['message'])) {
+            throw new Exception('message is empty');
+        }
+
+        //this will return the result_id
+        return $return['message'];
     }
 }
