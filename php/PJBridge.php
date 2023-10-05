@@ -115,8 +115,8 @@ class PJBridge
     public function connect($dsn, $user, $pass): void
     {
 
-        $connArr['action'] = 'connect';
         $connArr = [
+            'action' => 'connect',
             'data' => [
                 'user' => $user,
                 'pass' => $pass,
