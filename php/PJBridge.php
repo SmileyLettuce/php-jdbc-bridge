@@ -116,10 +116,12 @@ class PJBridge
     {
 
         $connArr['action'] = 'connect';
-        $connArr['data'] = [
-            'user' => $user,
-            'pass' => $pass,
-            'dsn' => $dsn
+        $connArr = [
+            'data' => [
+                'user' => $user,
+                'pass' => $pass,
+                'dsn' => $dsn
+            ]
         ];
         fwrite($this->sock, json_encode($connArr)."\n");
         $this->parse_reply();
@@ -167,7 +169,7 @@ class PJBridge
 
     /**
      * @param string $resultId
-     * @return array<int, string>
+     * @return array<int, array<string, string>>
      * @throws Exception
      */
     public function fetch(string $resultId): array
@@ -182,21 +184,24 @@ class PJBridge
 
         fwrite($this->sock, json_encode($sendArr)."\n");
 
-        /** @var array{'status': string, 'message': string ,'data': array<int, string>} $return */
+        /** @var array{'status': string, 'message': string ,'data': array<int, array<string, string>>} $return */
         $return = $this->parse_reply();
 
         if(!array_key_exists('data', $return)) {
             throw new Exception('data is empty');
         }
 
+        /** @var array<int, array<string, string>> $dataRow */
+        $dataRow = $return['data'];
+
         //this will return the result set
-        return $return['data'];
+        return $dataRow;
     }
 
 
     /**
      * @param string $resultId
-     * @return array<int, string>
+     * @return array<int, array<string, string>>
      * @throws Exception
      */
     public function fetch_array(string $resultId): array
@@ -211,15 +216,18 @@ class PJBridge
 
         fwrite($this->sock, json_encode($sendArr)."\n");
 
-        /** @var array{'status': string, 'message': string ,'data': array<int, string>} $return */
+        /** @var array{'status': string, 'message': string ,'data': array<string, string>} $return */
         $return = $this->parse_reply();
 
         if(!array_key_exists('data', $return)) {
             throw new Exception('data is empty');
         }
 
+        /** @var array<int, array<string, string>> $dataArray */
+        $dataArray = $return['data'];
+
         //this will return the result set
-        return $return['data'];
+        return $dataArray;
     }
 
 
