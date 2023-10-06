@@ -31,18 +31,37 @@ class PJBridge
     /** @var resource $sock */
     private $sock;
 
+    /** @var int $conn_timeout */
+    private int $conn_timeout = 60;
+
+    /** @var int $stream_timeout */
+    private int $stream_timeout = 60;
+
     /**
      * @param string $host
      * @param int $port
+     * @param array<mixed> $options
      * @throws Exception
      */
-    public function __construct(string $host="localhost", int $port=4444)
+    public function __construct(string $host="localhost", int $port=4444, array $options=[])
     {
 
-        $sock = fsockopen($host, $port, $error_code, $error_message);
+        if(array_key_exists("CONNECTION_TIMEOUT", $options)) {
+            $this->conn_timeout = intval($options['CONNECTION_TIMEOUT']);
+        }
+
+        if(array_key_exists("STREAM_TIMEOUT", $options)) {
+            $this->stream_timeout = intval($options['STREAM_TIMEOUT']);
+        }
+
+        $sock = fsockopen($host, $port, $error_code, $error_message, $this->conn_timeout);
 
         if (!$sock) {
             throw new Exception($error_code . ": " . $error_message);
+        }
+
+        if(stream_set_timeout($sock, $this->stream_timeout) === false) {
+            throw new Exception("error when setting stream timeout");
         }
 
         $this->sock = $sock;
@@ -68,6 +87,11 @@ class PJBridge
         $ret = [];
 
         $returnString = fgets($this->sock);
+
+        $info = stream_get_meta_data($this->sock);
+        if ($info['timed_out']) {
+            throw new Exception('Reading from stream timed out');
+        }
 
         if($returnString === false) {
             throw new Exception('Unable to get ouput from socket');
