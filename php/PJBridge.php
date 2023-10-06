@@ -59,13 +59,12 @@ class PJBridge
 
 
     /**
-     * @return array{'status': string, 'message': string ,"data"?: array<int, string>}
+     * @return array{'status': string, 'message': string ,"data"?: array<int, array<mixed>>}
      * @throws Exception
      */
     private function parse_reply(): array
     {
-
-        /** @var array{'status': string, 'message': string ,"data"?: array<int, string>} $ret */
+        /** @var array{'status': string, 'message': string ,"data"?: array<int, array<mixed>>} $ret */
         $ret = [];
 
         $returnString = fgets($this->sock);
@@ -169,10 +168,10 @@ class PJBridge
 
     /**
      * @param string $resultId
-     * @return array<int, array<string, string>>
+     * @return mixed[]
      * @throws Exception
      */
-    public function fetch(string $resultId): array
+    public function fetch(string $resultId): mixed
     {
 
         $sendArr = [
@@ -184,15 +183,15 @@ class PJBridge
 
         fwrite($this->sock, json_encode($sendArr)."\n");
 
-        /** @var array{'status': string, 'message': string ,'data': array<int, array<string, string>>} $return */
+        /** @var array{'status': string, 'message': string ,'data': array<int, array<mixed>>} $return */
         $return = $this->parse_reply();
 
         if(!array_key_exists('data', $return)) {
-            throw new Exception('data is empty');
+            throw new Exception('data key is missing from the returned result');
         }
 
-        /** @var array<int, array<string, string>> $dataRow */
-        $dataRow = $return['data'];
+        /** @var mixed[] $dataRow */
+        $dataRow = $return['data'][0];
 
         //this will return the result set
         return $dataRow;
@@ -201,7 +200,7 @@ class PJBridge
 
     /**
      * @param string $resultId
-     * @return array<int, array<string, string>>
+     * @return array<int, array<mixed>>
      * @throws Exception
      */
     public function fetch_array(string $resultId): array
@@ -216,14 +215,14 @@ class PJBridge
 
         fwrite($this->sock, json_encode($sendArr)."\n");
 
-        /** @var array{'status': string, 'message': string ,'data': array<string, string>} $return */
+        /** @var array{'status': string, 'message': string ,'data': array<int, array<mixed>>} $return */
         $return = $this->parse_reply();
 
         if(!array_key_exists('data', $return)) {
-            throw new Exception('data is empty');
+            throw new Exception('data key is missing from the returned result');
         }
 
-        /** @var array<int, array<string, string>> $dataArray */
+        /** @var array<int, array<mixed>> $dataArray */
         $dataArray = $return['data'];
 
         //this will return the result set
