@@ -168,7 +168,7 @@ class PJBridge
 
     /**
      * @param string $resultId
-     * @return mixed[]
+     * @return mixed
      * @throws Exception
      */
     public function fetch(string $resultId): mixed
@@ -190,7 +190,7 @@ class PJBridge
             throw new Exception('data key is missing from the returned result');
         }
 
-        /** @var mixed[] $dataRow */
+        /** @var mixed $dataRow */
         $dataRow = $return['data'][0];
 
         //this will return the result set
@@ -200,7 +200,7 @@ class PJBridge
 
     /**
      * @param string $resultId
-     * @return array<int, array<mixed>>
+     * @return array<mixed>
      * @throws Exception
      */
     public function fetch_array(string $resultId): array
@@ -222,7 +222,7 @@ class PJBridge
             throw new Exception('data key is missing from the returned result');
         }
 
-        /** @var array<int, array<mixed>> $dataArray */
+        /** @var array<mixed> $dataArray */
         $dataArray = $return['data'];
 
         //this will return the result set
