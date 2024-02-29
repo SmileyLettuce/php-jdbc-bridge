@@ -53,6 +53,8 @@ public class ServerThread extends Thread {
 
         try {
 
+            Utils.log("info", "thread_" + Thread.currentThread().getId() + " started");
+
             String line;
 
             while ((line = in.readLine()) != null) {
@@ -61,6 +63,7 @@ public class ServerThread extends Thread {
                 String action = mainObj.getString("action");
                 JSONObject dataObj = mainObj.getJSONObject("data");
 
+                Utils.log("info", "thread_" + Thread.currentThread().getId() + " action=" + action);
                 switch(action) {
                     case "connect":
                         serverCommands.connect(dataObj);
@@ -93,6 +96,8 @@ public class ServerThread extends Thread {
             Message msg = new Message("error", e.getMessage());
             this.write(msg.createJson().toString());
         }
+
+        Utils.log("info", "thread_" + Thread.currentThread().getId() + " stopped");
     }
 
     public void write(String s) {

@@ -80,12 +80,11 @@ public class Server extends Thread {
 
     public void run() {
 
-        Utils.log("notice", "Thread is running");
+        Utils.log("notice", "Server is running");
 
         while (listening) {
 
             try {
-
                 new ServerThread(serverSocket.accept()).start();
 
             } catch (IOException ex) {
