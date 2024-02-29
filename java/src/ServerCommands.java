@@ -158,8 +158,6 @@ public class ServerCommands {
             serverThread.write(msg.createJson().toString());
         }
 
-        //we have reached the end of the object and we can remove it from memory
-        this.free_result(dataObj);
     }
 
 
@@ -201,9 +199,6 @@ public class ServerCommands {
 
                 Message msg = new Message("error", "result set is null");
                 serverThread.write(msg.createJson().toString());
-
-                //we have reached the end of the object and we can remove it from memory
-                this.free_result(dataObj);
             }
 
         }catch (SQLException e){
